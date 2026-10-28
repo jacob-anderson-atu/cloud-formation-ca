@@ -177,9 +177,16 @@ Resources:
                     #!/bin/bash
                     yum update -y
                     yum install -y httpd
+                    # web tier homepage
+                    echo "<html><body><h1>Welcome to Jacob's Web Server! L00205577</h1><p><a href='/app/'>Visit App Tier</a></p></body></html>" > /var/www/html/index.html
+                    # /app/ page to link to the app tier
+                    cat << EOF > /etc/httpd/conf.d/app.conf
+                    ProxyRequests Off
+                    ProxyPass /app/ http://${AppServerInstance.PrivateIp}:8080/
+                    ProxyPassReverse /app/ http://${AppServerInstance.PrivateIp}:8080/
+                    EOF
                     systemctl enable httpd
                     systemctl start httpd
-                    echo "<html><body><h1>Welcome to Jacob's Web Server! L00205577</h1></body></html>" > /var/www/html/index.html
             Tags:
                 - Key: Name #adding a name tag to the instance
                   Value: WebServerInstance
