@@ -16,3 +16,53 @@ Resources:
                 - Key: Name #adding a name tag to the VPC
                   Value: ThreeTierVPC
 
+    # ----------------------------------------------------------------
+    # Subnets
+    # ----------------------------------------------------------------
+    WebSubnet: #creating a public subnet for the web tier
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            CidrBlock: 10.0.1.0/24 # Creating a subnet with a CIDR block of 10.0.1.0/24
+            MapPublicIpOnLaunch: true #enable public IP assignment for instances launched in this subnet
+            Tags:
+                - Key: Name #adding a name tag to the subnet
+                  Value: WebSubnet
+
+    AppSubnet: #creating a private subnet for the application tier
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            CidrBlock: 10.0.2.0/24 # Creating a subnet with a CIDR block of 10.0.2.0/24
+            MapPublicIpOnLaunch: false #disable public IP assignment for instances launched in this subnet
+            Tags:
+                - Key: Name #adding a name tag to the subnet
+                  Value: AppSubnet
+
+    # Two database subnets for RDS Multi-AZ deployment
+    DatabaseSubnetA: #creating a private subnet for the database tier in availability zone A
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            CidrBlock: 10.0.3.0/24 # Creating a subnet with a CIDR block of 10.0.3.0/24
+            MapPublicIpOnLaunch: false #disable public IP assignment for instances launched in this subnet
+            AvailabilityZone: !Select
+                - 0
+                - !GetAZs '' #select the first availability zone in the region
+            Tags:
+                - Key: Name #adding a name tag to the subnet
+                  Value: DatabaseSubnetA
+
+    DatabaseSubnetB: #creating a private subnet for the database tier in availability zone B
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            CidrBlock: 10.0.4.0/24 # Creating a subnet with a CIDR block of 10.0.4.0/24
+            MapPublicIpOnLaunch: false #disable public IP assignment for instances launched in this subnet
+            AvailabilityZone: !Select
+                - 1
+                - !GetAZs '' #select the second availability zone in the region
+            Tags:
+                - Key: Name #adding a name tag to the subnet
+                  Value: DatabaseSubnetB
+    
