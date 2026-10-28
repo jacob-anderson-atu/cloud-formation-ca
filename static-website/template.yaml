@@ -1,6 +1,6 @@
 Description: 'Static website using S3'
 AWSTemplateFormatVersion: "2010-09-09"
-Transform: S3Objects
+
 Resources:
   S3Bucket:
     Type: AWS::S3::Bucket
@@ -16,28 +16,7 @@ Resources:
         BlockPublicPolicy: false
         IgnorePublicAcls: false
         
-  WebsiteObject:
-    Type: AWS::S3::Object
-    Properties:
-      Target:
-        Bucket: !Ref S3Bucket
-        Key: index.html
-      ContentType: text/html
-      Body: |
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>CloudFormation Lab</title>
-        </head>
-        <body>
-          <h1>Jacob Anderson</h1>
-          <h2>L00205577</h2>
-          <h3>ATU PgDip DevOps</h3>
-          <p>CloudFormation Lab Assignment</p>
-        </body>
-        </html>
+
 
   S3BucketPolicy:
     Type: AWS::S3::BucketPolicy
