@@ -23,3 +23,8 @@ Resources:
             Principal: '*'
             Action: 's3:GetObject'
             Resource: !Sub '${S3Bucket.Arn}/*'
+
+Outputs:
+  WebsiteURL:
+    Description: 'URL of the static website'
+    Value: !GetAtt S3Bucket.WebsiteURL
