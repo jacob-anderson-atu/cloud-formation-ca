@@ -46,7 +46,7 @@ Resources:
                 - Key: Name #adding a name tag to the subnet
                   Value: AppSubnet
 
-    # Two database subnets for RDS Multi-AZ deployment
+    # Two database subnets for RDS DB subnet group
     DatabaseSubnetA: #creating a private subnet for the database tier in availability zone A
         Type: AWS::EC2::Subnet
         Properties:
@@ -202,8 +202,6 @@ Resources:
             UserData: #using user data to run a simple python application that listens on port 8080
                 Fn::Base64: !Sub |
                     #!/bin/bash
-                    yum update -y
-                    yum install -y python3
                     cat << EOF > /home/ec2-user/app.py
                     from http.server import BaseHTTPRequestHandler, HTTPServer
                     class SimpleHandler(BaseHTTPRequestHandler):
@@ -219,6 +217,43 @@ Resources:
             Tags:
                 - Key: Name #adding a name tag to the instance
                   Value: AppServerInstance
+    
+    # ---------------------------------------------------------------
+    # Database Tier
+    # ---------------------------------------------------------------
+
+    DatabaseSubnetGroup: #creating a DB subnet group for the RDS instance
+        Type: AWS::RDS::DBSubnetGroup
+        Properties:
+            DBSubnetGroupDescription: 'Database subnet group for the three-tier architecture'
+            SubnetIds:
+                - !Ref DatabaseSubnetA #reference to the first database subnet created above
+                - !Ref DatabaseSubnetB #reference to the second database subnet created above
+            Tags:
+                - Key: Name #adding a name tag to the DB subnet group
+                  Value: DatabaseSubnetGroup
+
+    DatabaseInstance: #creating an RDS instance for the database tier
+        Type: AWS::RDS::DBInstance
+        Properties:
+            Engine: mysql
+            DBInstanceClass: db.t3.micro
+            AllocatedStorage: 20
+            DBName: ThreeTierDB
+            MasterUsername: admin
+            ManageMasterUserPassword: true #securely manage the master user password
+            DBSubnetGroupName: !Ref DatabaseSubnetGroup
+            VPCSecurityGroups:
+                - !Ref DatabaseSecurityGroup #associating the database security group with the RDS instance
+            PubliclyAccessible: false #make the RDS instance private
+            MultiAZ: false #disable multi-AZ deployment for simplicity
+            BackupRetentionPeriod: 0
+            DeletionProtection: false #disable deletion protection for simplicity
+            Tags:
+                - Key: Name #adding a name tag to the RDS instance
+                  Value: ThreeTierDatabase
+
+    
 
 
 
@@ -231,4 +266,10 @@ Outputs: #same as I did in the static website template, output the public IP add
     AppServerPrivateIP: #output the private IP address of the application server instance
         Description: 'Private IP address of the application server instance'
         Value: !GetAtt AppServerInstance.PrivateIp #get the private IP address from the instance attributes
+        
+    DatabaseEndpoint: #output the endpoint of the RDS instance
+        Description: 'Endpoint of the RDS instance'
+        Value: !GetAtt DatabaseInstance.Endpoint.Address #get the endpoint address from the RDS
+    
+    
     
