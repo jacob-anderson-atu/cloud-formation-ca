@@ -130,7 +130,7 @@ Resources:
     WebSecurityGroup: #creating a security group for the web tier
         Type: AWS::EC2::SecurityGroup
         Properties:
-            GroupDescription: 'Allow HTTP and HTTPS traffic to the web tier'
+            GroupDescription: 'Allow HTTP Traffic to the web tier'
             VpcId: !Ref ThreeTierVPC #reference to the VPC created above
             SecurityGroupIngress:
                 - IpProtocol: tcp #allow TCP traffic
