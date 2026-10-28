@@ -1,0 +1,286 @@
+# Author: Jacob Anderson
+# Date: 2026-10-28
+# ATU PgDip Computing in DevOps 
+# Cloudformation CA1
+AWSTemplateFormatVersion: "2010-09-09"
+Description: 'Three-tier architecture using CloudFormation'
+
+Parameters: #avoid hardcoding the AMI ID, use SSM parameter store to get the latest Amazon Linux 2023 AMI ID
+    LatestAmazonLinuxAmi:
+        Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+        Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+        Description: 'Latest Amazon Linux 2023 AMI ID from SSM Parameter Store'
+        
+    DatabaseMasterUsername:
+        Type: String
+        Default: admin
+        Description: 'Master username for the RDS instance'
+        
+    DatabaseMasterPassword:
+        Type: String
+        NoEcho: true #hide the password in the CloudFormation console
+        Description: 'Master password for the RDS instance'
+
+
+Resources:
+    ThreeTierVPC: #creating a VPC for the three-tier architecture
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: 10.0.0.0/16 # Creating a VPC with a CIDR block of 10.0.0.0/16
+            EnableDnsHostnames: true #enable DNS
+            EnableDnsSupport: true
+            Tags:
+                - Key: Name #adding a name tag to the VPC
+                  Value: ThreeTierVPC
+
+    # ----------------------------------------------------------------
+    # Subnets
+    # ----------------------------------------------------------------
+    WebSubnet: #creating a public subnet for the web tier
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            CidrBlock: 10.0.1.0/24 # Creating a subnet with a CIDR block of 10.0.1.0/24
+            MapPublicIpOnLaunch: true #enable public IP assignment for instances launched in this subnet
+            Tags:
+                - Key: Name #adding a name tag to the subnet
+                  Value: WebSubnet
+
+    AppSubnet: #creating a private subnet for the application tier
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            CidrBlock: 10.0.2.0/24 # Creating a subnet with a CIDR block of 10.0.2.0/24
+            MapPublicIpOnLaunch: false #disable public IP assignment for instances launched in this subnet
+            Tags:
+                - Key: Name #adding a name tag to the subnet
+                  Value: AppSubnet
+
+    # Two database subnets for RDS DB subnet group
+    DatabaseSubnetA: #creating a private subnet for the database tier in availability zone A
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            CidrBlock: 10.0.3.0/24 # Creating a subnet with a CIDR block of 10.0.3.0/24
+            MapPublicIpOnLaunch: false #disable public IP assignment for instances launched in this subnet
+            AvailabilityZone: !Select
+                - 0
+                - !GetAZs '' #select the first availability zone in the region
+            Tags:
+                - Key: Name #adding a name tag to the subnet
+                  Value: DatabaseSubnetA
+
+    DatabaseSubnetB: #creating a private subnet for the database tier in availability zone B
+        Type: AWS::EC2::Subnet
+        Properties:
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            CidrBlock: 10.0.4.0/24 # Creating a subnet with a CIDR block of 10.0.4.0/24
+            MapPublicIpOnLaunch: false #disable public IP assignment for instances launched in this subnet
+            AvailabilityZone: !Select
+                - 1
+                - !GetAZs '' #select the second availability zone in the region
+            Tags:
+                - Key: Name #adding a name tag to the subnet
+                  Value: DatabaseSubnetB
+    
+    # ---------------------------------------------------------------
+    # Internet Gateway and Route Tables
+    # ---------------------------------------------------------------
+
+    InternetGateway: #creating an internet gateway for the VPC
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+                - Key: Name #adding a name tag to the internet gateway
+                  Value: ThreeTierIGW
+    
+    InternetGatewayAttachment: #attaching the internet gateway to the VPC
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            InternetGatewayId: !Ref InternetGateway #reference to the internet gateway created above
+    
+    PublicRouteTable: #creating a route table for the public subnet
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            Tags:
+                - Key: Name #adding a name tag to the route table
+                  Value: PublicRouteTable
+    
+    PublicRoute: #creating a route to the internet gateway for the public subnet
+        Type: AWS::EC2::Route
+        DependsOn: InternetGatewayAttachment #ensure the internet gateway is attached before creating the route
+        Properties:
+            RouteTableId: !Ref PublicRouteTable #reference to the public route table created above
+            DestinationCidrBlock: 0.0.0.0/0 #route to all IP addresses
+            GatewayId: !Ref InternetGateway #reference to the internet gateway created above
+    
+    # only route the web subnet to the public route table, the app and database subnets will not have a route to the internet
+    WebSubnetRouteTableAssociation: #associating the public subnet with the public route table
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            SubnetId: !Ref WebSubnet #reference to the public subnet created above
+            RouteTableId: !Ref PublicRouteTable #reference to the public route table created above
+
+    # ---------------------------------------------------------------
+    # Security Groups
+    # ---------------------------------------------------------------
+
+    WebSecurityGroup: #creating a security group for the web tier
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: 'Allow HTTP Traffic to the web tier'
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            SecurityGroupIngress:
+                - IpProtocol: tcp #allow TCP traffic
+                  FromPort: 80 #allow HTTP traffic on port 80
+                  ToPort: 80
+                  CidrIp: 0.0.0.0/0 #allow traffic from any IP address
+            SecurityGroupEgress:
+                - IpProtocol: -1 #allow all outbound traffic
+                  CidrIp: 0.0.0.0/0
+    
+    # departure from the example, handling app and database traffic with security groups
+    AppSecurityGroup: #creating a security group for the application tier
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: 'Allow traffic from the web tier to the application tier'
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            SecurityGroupIngress:
+                - IpProtocol: tcp #allow TCP traffic
+                  FromPort: 8080 #allow traffic on port 8080 (refine later if needed)
+                  ToPort: 8080
+                  SourceSecurityGroupId: !Ref WebSecurityGroup #allow traffic from the web security group
+            SecurityGroupEgress:
+                - IpProtocol: -1 #allow all outbound traffic
+                  CidrIp: 0.0.0.0/0
+                  
+    DatabaseSecurityGroup: #creating a security group for the database tier
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: 'Allow traffic from the application tier to the database tier'
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            SecurityGroupIngress:
+                - IpProtocol: tcp #allow TCP traffic
+                  FromPort: 3306 #allow MySQL traffic on port 3306
+                  ToPort: 3306
+                  SourceSecurityGroupId: !Ref AppSecurityGroup #allow traffic from the application security group
+            SecurityGroupEgress:
+                - IpProtocol: -1 #allow all outbound traffic
+                  CidrIp: 0.0.0.0/0
+                  
+    # ---------------------------------------------------------------
+    # EC2 Instances
+    # ---------------------------------------------------------------
+
+    WebServerInstance: #creating an EC2 instance for the web tier
+        Type: AWS::EC2::Instance
+        Properties:
+            InstanceType: t3.micro #using a t3.micro instance type
+            ImageId: !Ref LatestAmazonLinuxAmi #using the latest Amazon Linux 2023 AMI ID from SSM parameter store
+            SubnetId: !Ref WebSubnet #launching the instance in the public subnet
+            SecurityGroupIds:
+                - !Ref WebSecurityGroup #associating the web security group with the instance
+            UserData: #using user data to install and start a simple web server
+                Fn::Base64: !Sub |
+                    #!/bin/bash
+                    yum update -y
+                    yum install -y httpd
+                    # web tier homepage
+                    echo "<html><body><h1>Welcome to Jacob's Web Server! L00205577</h1><p><a href='/app/'>Visit App Tier</a></p></body></html>" > /var/www/html/index.html
+                    # /app/ page to link to the app tier
+                    cat << EOF > /etc/httpd/conf.d/app.conf
+                    ProxyRequests Off
+                    ProxyPass /app/ http://${AppServerInstance.PrivateIp}:8080/
+                    ProxyPassReverse /app/ http://${AppServerInstance.PrivateIp}:8080/
+                    EOF
+                    systemctl enable httpd
+                    systemctl start httpd
+            Tags:
+                - Key: Name #adding a name tag to the instance
+                  Value: WebServerInstance
+
+    AppServerInstance: #creating an EC2 instance for the application tier
+        Type: AWS::EC2::Instance
+        Properties:
+            InstanceType: t3.micro #using a t3.micro instance type
+            ImageId: !Ref LatestAmazonLinuxAmi #using the latest Amazon Linux 2023 AMI ID from SSM parameter store
+            SubnetId: !Ref AppSubnet #launching the instance in the private subnet
+            SecurityGroupIds:
+                - !Ref AppSecurityGroup #associating the application security group with the instance
+            UserData: #using user data to run a simple python application that listens on port 8080
+                Fn::Base64: !Sub |
+                    #!/bin/bash
+                    cat << EOF > /home/ec2-user/app.py
+                    from http.server import BaseHTTPRequestHandler, HTTPServer
+                    class SimpleHandler(BaseHTTPRequestHandler):
+                        def do_GET(self):
+                            self.send_response(200)
+                            self.send_header('Content-type', 'text/html')
+                            self.end_headers()
+                            self.wfile.write(b"<html><body><h1>Welcome to Jacob's App Server! L00205577</h1></body></html>")
+                    httpd = HTTPServer(('', 8080), SimpleHandler)
+                    httpd.serve_forever()
+                    EOF
+                    python3 /home/ec2-user/app.py > /var/log/app.log 2>&1 &
+            Tags:
+                - Key: Name #adding a name tag to the instance
+                  Value: AppServerInstance
+    
+    # ---------------------------------------------------------------
+    # Database Tier
+    # ---------------------------------------------------------------
+
+    DatabaseSubnetGroup: #creating a DB subnet group for the RDS instance
+        Type: AWS::RDS::DBSubnetGroup
+        Properties:
+            DBSubnetGroupDescription: 'Database subnet group for the three-tier architecture'
+            SubnetIds:
+                - !Ref DatabaseSubnetA #reference to the first database subnet created above
+                - !Ref DatabaseSubnetB #reference to the second database subnet created above
+            Tags:
+                - Key: Name #adding a name tag to the DB subnet group
+                  Value: DatabaseSubnetGroup
+
+    DatabaseInstance: #creating an RDS instance for the database tier
+        Type: AWS::RDS::DBInstance
+        Properties:
+            Engine: mysql
+            DBInstanceClass: db.t3.micro
+            AllocatedStorage: 20
+            DBName: ThreeTierDB
+            MasterUsername: !Ref DatabaseMasterUsername #using the master username parameter
+            MasterUserPassword: !Ref DatabaseMasterPassword #using the master password
+            DBSubnetGroupName: !Ref DatabaseSubnetGroup
+            VPCSecurityGroups:
+                - !Ref DatabaseSecurityGroup #associating the database security group with the RDS instance
+            PubliclyAccessible: false #make the RDS instance private
+            MultiAZ: false #disable multi-AZ deployment for simplicity
+            BackupRetentionPeriod: 0
+            DeletionProtection: false #disable deletion protection for simplicity
+            Tags:
+                - Key: Name #adding a name tag to the RDS instance
+                  Value: ThreeTierDatabase
+
+
+    
+
+
+
+
+Outputs: #same as I did in the static website template, output the public IP address of the web server instance
+    WebServerPublicIP: #output the public IP address of the web server instance
+        Description: 'Public IP address of the web server instance'
+        Value: !GetAtt WebServerInstance.PublicIp #get the public IP address from the instance attributes
+        
+    AppServerPrivateIP: #output the private IP address of the application server instance
+        Description: 'Private IP address of the application server instance'
+        Value: !GetAtt AppServerInstance.PrivateIp #get the private IP address from the instance attributes
+        
+    DatabaseEndpoint: #output the endpoint of the RDS instance
+        Description: 'Endpoint of the RDS instance'
+        Value: !GetAtt DatabaseInstance.Endpoint.Address #get the endpoint address from the RDS
+    
+    
+    
