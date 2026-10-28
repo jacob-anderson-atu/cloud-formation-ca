@@ -66,3 +66,44 @@ Resources:
                 - Key: Name #adding a name tag to the subnet
                   Value: DatabaseSubnetB
     
+    # ---------------------------------------------------------------
+    # Internet Gateway and Route Tables
+    # ---------------------------------------------------------------
+
+    InternetGateway: #creating an internet gateway for the VPC
+        Type: AWS::EC2::InternetGateway
+        Properties:
+            Tags:
+                - Key: Name #adding a name tag to the internet gateway
+                  Value: ThreeTierIGW
+    
+    InternetGatewayAttachment: #attaching the internet gateway to the VPC
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            InternetGatewayId: !Ref InternetGateway #reference to the internet gateway created above
+    
+    PublicRouteTable: #creating a route table for the public subnet
+        Type: AWS::EC2::RouteTable
+        Properties:
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            Tags:
+                - Key: Name #adding a name tag to the route table
+                  Value: PublicRouteTable
+    
+    PublicRoute: #creating a route to the internet gateway for the public subnet
+        Type: AWS::EC2::Route
+        DependsOn: InternetGatewayAttachment #ensure the internet gateway is attached before creating the route
+        Properties:
+            RouteTableId: !Ref PublicRouteTable #reference to the public route table created above
+            DestinationCidrBlock: 0.0.0.0/0 #route to all IP addresses
+            GatewayId: !Ref InternetGateway #reference to the internet gateway created above
+    
+    # only route the web subnet to the public route table, the app and database subnets will not have a route to the internet
+    WebSubnetRouteTableAssociation: #associating the public subnet with the public route table
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+            SubnetId: !Ref WebSubnet #reference to the public subnet created above
+            RouteTableId: !Ref PublicRouteTable #reference to the public route table created above
+
+    
