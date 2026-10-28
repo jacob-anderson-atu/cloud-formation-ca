@@ -192,7 +192,23 @@ Resources:
             SubnetId: !Ref AppSubnet #launching the instance in the private subnet
             SecurityGroupIds:
                 - !Ref AppSecurityGroup #associating the application security group with the instance
-            
+            UserData: #using user data to run a simple python application that listens on port 8080
+                Fn::Base64: !Sub |
+                    #!/bin/bash
+                    yum update -y
+                    yum install -y python3
+                    cat << EOF > /home/ec2-user/app.py
+                    from http.server import BaseHTTPRequestHandler, HTTPServer
+                    class SimpleHandler(BaseHTTPRequestHandler):
+                        def do_GET(self):
+                            self.send_response(200)
+                            self.send_header('Content-type', 'text/html')
+                            self.end_headers()
+                            self.wfile.write(b"<html><body><h1>Welcome to Jacob's App Server! L00205577</h1></body></html>")
+                    httpd = HTTPServer(('', 8080), SimpleHandler)
+                    httpd.serve_forever()
+                    EOF
+                    python3 /home/ec2-user/app.py > /var/log/app.log 2>&1 &
             Tags:
                 - Key: Name #adding a name tag to the instance
                   Value: AppServerInstance
@@ -204,4 +220,8 @@ Outputs: #same as I did in the static website template, output the public IP add
     WebServerPublicIP: #output the public IP address of the web server instance
         Description: 'Public IP address of the web server instance'
         Value: !GetAtt WebServerInstance.PublicIp #get the public IP address from the instance attributes
+        
+    AppServerPrivateIP: #output the private IP address of the application server instance
+        Description: 'Private IP address of the application server instance'
+        Value: !GetAtt AppServerInstance.PrivateIp #get the private IP address from the instance attributes
     
