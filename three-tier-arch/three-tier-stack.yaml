@@ -106,4 +106,51 @@ Resources:
             SubnetId: !Ref WebSubnet #reference to the public subnet created above
             RouteTableId: !Ref PublicRouteTable #reference to the public route table created above
 
+    # ---------------------------------------------------------------
+    # Security Groups
+    # ---------------------------------------------------------------
+
+    WebSecurityGroup: #creating a security group for the web tier
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: 'Allow HTTP and HTTPS traffic to the web tier'
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            SecurityGroupIngress:
+                - IpProtocol: tcp #allow TCP traffic
+                  FromPort: 80 #allow HTTP traffic on port 80
+                  ToPort: 80
+                  CidrIp: 0.0.0.0/0 #allow traffic from any IP address
+            SecurityGroupEgress:
+                - IpProtocol: -1 #allow all outbound traffic
+                  CidrIp: 0.0.0.0/0
+    
+    # departure from the example, handling app and database traffic with security groups
+    AppSecurityGroup: #creating a security group for the application tier
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: 'Allow traffic from the web tier to the application tier'
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            SecurityGroupIngress:
+                - IpProtocol: tcp #allow TCP traffic
+                  FromPort: 8080 #allow traffic on port 8080 (refine later if needed)
+                  ToPort: 8080
+                  SourceSecurityGroupId: !Ref WebSecurityGroup #allow traffic from the web security group
+            SecurityGroupEgress:
+                - IpProtocol: -1 #allow all outbound traffic
+                  CidrIp: 0.0.0.0/0
+                  
+    DatabaseSecurityGroup: #creating a security group for the database tier
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: 'Allow traffic from the application tier to the database tier'
+            VpcId: !Ref ThreeTierVPC #reference to the VPC created above
+            SecurityGroupIngress:
+                - IpProtocol: tcp #allow TCP traffic
+                  FromPort: 3306 #allow MySQL traffic on port 3306
+                  ToPort: 3306
+                  SourceSecurityGroupId: !Ref AppSecurityGroup #allow traffic from the application security group
+            SecurityGroupEgress:
+                - IpProtocol: -1 #allow all outbound traffic
+                  CidrIp: 0.0.0.0/0
+                  
     
