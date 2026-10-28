@@ -1,16 +1,21 @@
+# Author: Jacob Anderson
+# Date: 2026-10-28
+# ATU PgDip Computing in DevOps
+# Cloudformation CA1
+
 Description: 'Static website using S3'
 AWSTemplateFormatVersion: "2010-09-09"
 
 Resources:
-  S3Bucket:
+  S3Bucket: #creating an S3 bucket to host the static website
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: 'my-static-website-andersjr'
+      BucketName: 'my-static-website-andersjr' #global unique name for the bucket
       VersioningConfiguration:
-        Status: Enabled
+        Status: Enabled #enable versioning for the bucket
       WebsiteConfiguration:
-        IndexDocument: index.html
-      PublicAccessBlockConfiguration:
+        IndexDocument: index.html #webpage index document
+      PublicAccessBlockConfiguration: #allow public access to the bucket for website hosting
         RestrictPublicBuckets: false
         BlockPublicAcls: false
         BlockPublicPolicy: false
@@ -18,19 +23,19 @@ Resources:
         
 
 
-  S3BucketPolicy:
+  S3BucketPolicy: #creating a bucket policy to allow public read access to the S3 bucket
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref S3Bucket
+      Bucket: !Ref S3Bucket #reference to the S3 bucket created above
       PolicyDocument:
         Version: '2012-10-17'
-        Statement:
+        Statement: #allow public read access to the S3 bucket
           - Effect: Allow
             Principal: '*'
             Action: 's3:GetObject'
-            Resource: !Sub '${S3Bucket.Arn}/*'
+            Resource: !Sub '${S3Bucket.Arn}/*' #substitute the S3 bucket ARN to allow access to all objects in the bucket
 
-Outputs:
+Outputs: #output the URL of the static website
   WebsiteURL:
     Description: 'URL of the static website'
-    Value: !GetAtt S3Bucket.WebsiteURL
+    Value: !GetAtt S3Bucket.WebsiteURL #get the website URL from the S3 bucket attributes
