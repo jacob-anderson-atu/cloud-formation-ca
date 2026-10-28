@@ -10,6 +10,16 @@ Parameters: #avoid hardcoding the AMI ID, use SSM parameter store to get the lat
         Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
         Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
         Description: 'Latest Amazon Linux 2023 AMI ID from SSM Parameter Store'
+        
+    DatabaseMasterUsername:
+        Type: String
+        Default: admin
+        Description: 'Master username for the RDS instance'
+        
+    DatabaseMasterPassword:
+        Type: String
+        NoEcho: true #hide the password in the CloudFormation console
+        Description: 'Master password for the RDS instance'
 
 
 Resources:
@@ -240,8 +250,8 @@ Resources:
             DBInstanceClass: db.t3.micro
             AllocatedStorage: 20
             DBName: ThreeTierDB
-            MasterUsername: admin
-            ManageMasterUserPassword: true #securely manage the master user password
+            MasterUsername: !Ref DatabaseMasterUsername #using the master username parameter
+            MasterUserPassword: !Ref DatabaseMasterPassword #using the master password
             DBSubnetGroupName: !Ref DatabaseSubnetGroup
             VPCSecurityGroups:
                 - !Ref DatabaseSecurityGroup #associating the database security group with the RDS instance
