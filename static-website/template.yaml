@@ -6,10 +6,15 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: 'my-static-website-andersjr'
+      VersioningConfiguration:
+        Status: Enabled
       WebsiteConfiguration:
         IndexDocument: index.html
       PublicAccessBlockConfiguration:
         RestrictPublicBuckets: false
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
         
 
   S3BucketPolicy:
