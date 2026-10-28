@@ -25,7 +25,7 @@ I attempted to create the index.html inline within the template.yaml in an effor
 ### Tutorial and Reference Materials
 * **example project:** github.com/mertechcloud/3Tier_webapp_deployment_in_AWS
 * **reference:** AWS CloudFormation User Guide
-* **extensnions:** AWS CloudFormation Snipped and CloudFormation Linter
+* **extensnions:** AWS CloudFormation Snippets and CloudFormation Linter
 * **LLM/AI assistance:** No external LLM prompts were used. However, inline GitHub Copilot suggestions in VSCode were enabled. Suggested completions were reviewed before acceptance and the resulting code was validated and tested as part of the deployment process.
 
 ### Approach and Decisions
@@ -62,7 +62,34 @@ RDS (mysql)
 Another significant change I made was the example only used a security group for the webserver and then used network ACLs for the appserver and database connections. I thought that felt confusing so I used security groups for all three. 
 
 ### Webserver and Appserver
-For these I had some amount of prior knowledge with basic apache reverse proxy. So I created the basic html page inline on the webserver and then used a reverse proxy to pull a second html page from the appserver in order to validate the connection between the two. On the appserver I didn't have external network access to easily install packages so I just used a python http service that responds on port 8080 and serves up a single html page. When it came time to connect the appserver to the database I have a lot less confidence with databases so I left them connected by networks but not actively talking.
+For these I had some amount of prior knowledge with basic apache reverse proxy. So I created the basic html page inline on the webserver and then used a reverse proxy to pull a second html page from the appserver in order to validate the connection between the two. On the appserver I didn't have external network access to easily install packages so I just used a python http service that responds on port 8080 and serves up a single html page. 
+
+### Database
+When it came to integrating the appserver with the database, I have a lot less experience with databases. I decided that fully implementing the database connection was beyond what I needed to demonstrate for this assignment. Therefore I configured the network and security relationship between the appserver and database but did not implement application-level communication.
 
 ### Security / Scalability / Performance / Cost
-I know there are a lot of avenues to improve upon what I created. In regards to security you can use the AWS managed database passwords to not have to input the database password at all. Naturally you can replace http with https for better security. I did however use security group to security group rules which is better than 0.0.0.0/0 between tiers. It currently isn't particularly scalable, but it could be improved using the Auto Scaling Groups feature, although that would increase cost. The currently reliability is not great considering each EC2 instance is a single point of failure. This could be addressed through high availability and deployment across availibility zones with load balancers but those are also costly and complex. As far as cost I deliberately avoided NAT Gateways, load balancers, Multi-AZ databases, Route 53, ASG, etc to keep costs low as well as simplicity, this does come with a tradeoff of lower availability/scalability/performance/etc.
+I know there are a lot of avenues to improve upon what I created. In regards to security you can use the AWS managed database passwords to not have to input the database password at all. Naturally you can replace http with https for better security. I did however use security group to security group rules which is better than 0.0.0.0/0 between tiers. 
+
+It currently isn't particularly scalable, but it could be improved using the Auto Scaling Groups feature, although that would increase cost. 
+
+The current reliability is not great considering each EC2 instance is a single point of failure. This could be addressed through high availability and deployment across availibility zones with load balancers but those are also costly and complex. 
+
+As far as cost I deliberately avoided NAT Gateways, load balancers, Multi-AZ databases, Route 53, ASG, etc to keep costs low as well as simplicity, this does come with a tradeoff of lower availability/scalability/performance/etc.
+
+### Testing
+* Validated template using the CLI
+* Created the cloudformation stack
+* tested public IP of webserver
+* accessed appserver page through webserver - this validated communication between appserver and webserver
+* deleted stack and confirmed resources were removed
+
+### Issues Encountered
+* I tried to install packages on the appserver using yum before realizing it had no external access being on a private subnet.
+* Struggled to understand the NACLs on the example project, so I relied on Security Groups instead.
+
+### Deployment
+1. 'aws cloudformation deploy --template-file .\three-tier-arch\three-tier-stack.yaml --stack-name three-tier-ca --parameter-overrides DatabaseMasterPassword=****'
+2. 'aws cloudformation describe-stacks --stack-name three-tier-ca
+3. 'aws cloudformation delete-stack --stack-name three-tier-ca
+
+I used the create-stack command for the static webpage section, but while testing the three-tier architecture I realized the deploy command functions better as both the create-stack and update-stack commands and so I switched to using that instead as it was easier.
