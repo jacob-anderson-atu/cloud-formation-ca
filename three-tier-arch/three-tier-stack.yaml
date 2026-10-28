@@ -5,6 +5,13 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: 'Three-tier architecture using CloudFormation'
 
+Parameters: #avoid hardcoding the AMI ID, use SSM parameter store to get the latest Amazon Linux 2023 AMI ID
+    LatestAmazonLinuxAmi:
+        Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+        Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+        Description: 'Latest Amazon Linux 2023 AMI ID from SSM Parameter Store'
+
+
 Resources:
     ThreeTierVPC: #creating a VPC for the three-tier architecture
         Type: AWS::EC2::VPC
@@ -153,4 +160,48 @@ Resources:
                 - IpProtocol: -1 #allow all outbound traffic
                   CidrIp: 0.0.0.0/0
                   
+    # ---------------------------------------------------------------
+    # EC2 Instances
+    # ---------------------------------------------------------------
+
+    WebServerInstance: #creating an EC2 instance for the web tier
+        Type: AWS::EC2::Instance
+        Properties:
+            InstanceType: t3.micro #using a t3.micro instance type
+            ImageId: !Ref LatestAmazonLinuxAmi #using the latest Amazon Linux 2023 AMI ID from SSM parameter store
+            SubnetId: !Ref WebSubnet #launching the instance in the public subnet
+            SecurityGroupIds:
+                - !Ref WebSecurityGroup #associating the web security group with the instance
+            UserData: #using user data to install and start a simple web server
+                Fn::Base64: !Sub |
+                    #!/bin/bash
+                    yum update -y
+                    yum install -y httpd
+                    systemctl enable httpd
+                    systemctl start httpd
+                    echo "<html><body><h1>Welcome to Jacob's Web Server! L00205577</h1></body></html>" > /var/www/html/index.html
+            Tags:
+                - Key: Name #adding a name tag to the instance
+                  Value: WebServerInstance
+
+    AppServerInstance: #creating an EC2 instance for the application tier
+        Type: AWS::EC2::Instance
+        Properties:
+            InstanceType: t3.micro #using a t3.micro instance type
+            ImageId: !Ref LatestAmazonLinuxAmi #using the latest Amazon Linux 2023 AMI ID from SSM parameter store
+            SubnetId: !Ref AppSubnet #launching the instance in the private subnet
+            SecurityGroupIds:
+                - !Ref AppSecurityGroup #associating the application security group with the instance
+            
+            Tags:
+                - Key: Name #adding a name tag to the instance
+                  Value: AppServerInstance
+
+
+
+
+Outputs: #same as I did in the static website template, output the public IP address of the web server instance
+    WebServerPublicIP: #output the public IP address of the web server instance
+        Description: 'Public IP address of the web server instance'
+        Value: !GetAtt WebServerInstance.PublicIp #get the public IP address from the instance attributes
     
