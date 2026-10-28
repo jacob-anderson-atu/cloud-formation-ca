@@ -1,0 +1,18 @@
+# Author: Jacob Anderson
+# Date: 2026-10-28
+# ATU PgDip Computing in DevOps 
+# Cloudformation CA1
+AWSTemplateFormatVersion: "2010-09-09"
+Description: 'Three-tier architecture using CloudFormation'
+
+Resources:
+    ThreeTierVPC: #creating a VPC for the three-tier architecture
+        Type: AWS::EC2::VPC
+        Properties:
+            CidrBlock: 10.0.0.0/16 # Creating a VPC with a CIDR block of 10.0.0.0/16
+            EnableDnsHostnames: true #enable DNS
+            EnableDnsSupport: true
+            Tags:
+                - Key: Name #adding a name tag to the VPC
+                  Value: ThreeTierVPC
+
